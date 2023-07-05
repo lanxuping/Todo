@@ -6,14 +6,17 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
-    let filePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("items.plist")
-    
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+
     var itemArray:[Item] = [Item]()
     var userDefault = UserDefaults.standard
     override func viewDidLoad() {
         super.viewDidLoad()
+
+//        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
         loadItems()
     }
 
@@ -21,12 +24,11 @@ class TodoListViewController: UITableViewController {
         var textF = UITextField()
         let alert = UIAlertController(title: "add", message: "new", preferredStyle: .alert)
         let action = UIAlertAction(title: "add item", style: .default) { ac in
-//            let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-            let newItem = Item()
+            let newItem = Item(context: self.context)
             newItem.title = textF.text!
+            newItem.done = false
             self.itemArray.append(newItem)
             self.saveItems()
-            self.tableView.reloadData()
         }
         alert.addTextField { textField in
             textF = textField
@@ -58,6 +60,55 @@ class TodoListViewController: UITableViewController {
     }
     
     func saveItems() {
+        do {
+            try context.save()
+        } catch {
+            print("err : saveItems \(error)")
+        }
+        self.tableView.reloadData()
+    }
+    //设置一个默认值，假设没有传递参数则使用默认参数
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+        do {
+            itemArray = try context.fetch(request)
+        } catch {
+            print("err : loadItems \(error)")
+        }
+    }
+    func deleteItems(indexPath: IndexPath) {
+        context.delete(itemArray[indexPath.row])
+        itemArray.remove(at: indexPath.row)
+    }
+}
+
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        request.predicate = NSPredicate(format: "title CONTAINS[CD] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        loadItems(with: request)//传递参数替换默认参数
+        self.tableView.reloadData()
+    }
+}
+
+
+
+
+
+//MARK: - NSCoder filemanager (plist)
+/*
+let filePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("items.plist")
+func loadItems(){
+    do {
+        if let data = try? Data(contentsOf: filePath!) {
+            let decoder = PropertyListDecoder()
+            itemArray = try decoder.decode([Item].self, from: data)
+        }
+    } catch {
+        print(error)
+    }
+}
+func saveItems() {
         let decode = PropertyListEncoder()
         do {
             let data = try decode.encode(itemArray)
@@ -65,17 +116,5 @@ class TodoListViewController: UITableViewController {
         } catch {
             print(error)
         }
-    }
-    
-    func loadItems(){
-        do {
-            if let data = try? Data(contentsOf: filePath!) {
-                let decoder = PropertyListDecoder()
-                itemArray = try decoder.decode([Item].self, from: data)
-            }
-        } catch {
-            print(error)
-        }
-    }
 }
-
+*/
